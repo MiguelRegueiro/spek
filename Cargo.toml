@@ -1,0 +1,8 @@
+[package]
+name = "spek"
+version = "0.1.0"
+edition = "2024"
+description = "A small, read-only view of Git working-tree changes"
+license = "MIT"
+
+[dependencies]
