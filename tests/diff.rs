@@ -4,6 +4,75 @@ use common::{Repo, snapshot};
 use std::fs;
 
 #[test]
+fn fits_paths_and_scaled_bars_to_available_columns() {
+    let repo = Repo::new();
+    let directory = "quickshell/.config/quickshell/services";
+    fs::create_dir_all(repo.0.join(directory)).unwrap();
+    let path = format!("{directory}/BrightnessService.qml");
+    repo.write(&path, &"old\n".repeat(100));
+    repo.write("README.md", "old\n");
+    repo.commit();
+    repo.write(&path, &"new\n".repeat(200));
+    repo.write("README.md", &"new\n".repeat(80));
+
+    for columns in [40, 60, 80, 100, 160] {
+        let output = repo
+            .command(env!("CARGO_BIN_EXE_spek"))
+            .env("COLUMNS", columns.to_string())
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        let text = String::from_utf8(output.stdout).unwrap();
+        let rows: Vec<_> = text.lines().filter(|line| line.contains(" | ")).collect();
+        assert_eq!(rows.len(), 2, "{text}");
+        assert_eq!(rows[0].find(" | "), rows[1].find(" | "), "{text}");
+        for row in rows {
+            assert!(row.len() <= columns, "{columns}: {row}");
+            let bar = row.split_whitespace().last().unwrap();
+            assert!(bar.contains('+') && bar.contains('-'), "{row}");
+            assert!(bar.len() <= 50, "{row}");
+        }
+        if columns == 80 {
+            assert!(
+                text.contains(".../quickshell/services/BrightnessService.qml"),
+                "{text}"
+            );
+        }
+        if columns == 160 {
+            assert!(text.contains(&path), "{text}");
+        }
+        assert!(text.ends_with("2 files changed, 280 insertions, 101 deletions\n"));
+    }
+}
+
+#[test]
+fn narrow_output_preserves_binary_sizes_and_shortens_pure_renames() {
+    let repo = Repo::new();
+    let old = "a-very-long-original-filename-that-needs-shortening";
+    let new = "a-very-long-renamed-filename-that-needs-shortening";
+    repo.write(old, "unchanged\n");
+    repo.commit();
+    repo.git(&["mv", old, new]);
+    fs::write(repo.0.join("a-very-long-binary-filename"), [0; 96]).unwrap();
+    let output = repo
+        .command(env!("CARGO_BIN_EXE_spek"))
+        .env("COLUMNS", "40")
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    for row in text.lines().take(2) {
+        assert!(row.len() <= 40, "{row}");
+        assert!(row.contains("..."), "{row}");
+    }
+    assert!(text.contains("Bin 0 -> 96 bytes"), "{text}");
+    assert!(
+        text.lines()
+            .any(|row| row.starts_with("R  ...") && !row.contains(" | "))
+    );
+}
+
+#[test]
 fn combines_changes_without_touching_the_repository() {
     let repo = Repo::new();
     repo.write("mixed", "original\n");

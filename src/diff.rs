@@ -114,7 +114,7 @@ pub fn run() -> io::Result<()> {
         rows.push((code.to_owned(), name, stat, directory));
     }
 
-    let name_width = rows
+    let full_name_width = rows
         .iter()
         .map(|(_, name, _, _)| name.chars().count())
         .max()
@@ -125,6 +125,24 @@ pub fn run() -> io::Result<()> {
         .max()
         .unwrap_or(0);
     let count_width = max_lines.to_string().len();
+    let columns = output_width();
+    // Budget for the status, separators, counts, and a useful graph before
+    // assigning space to paths. Short paths leave more room for the graph.
+    let detail_width = rows
+        .iter()
+        .map(|(_, _, stat, directory)| {
+            if *directory {
+                "directory".len()
+            } else {
+                stat.binary.as_ref().map_or(0, String::len)
+            }
+        })
+        .max()
+        .unwrap_or(0);
+    let preferred_graph = max_lines.min(50).min(columns / 4);
+    let reserved = detail_width.max(count_width + 1 + preferred_graph);
+    let name_width = full_name_width.min(columns.saturating_sub(6 + reserved).max(3));
+    let graph_width = 50.min(columns.saturating_sub(7 + name_width + count_width));
     let terminal = if io::stdout().is_terminal() {
         "true"
     } else {
@@ -158,6 +176,7 @@ pub fn run() -> io::Result<()> {
     let mut deleted = 0;
     let mut out = io::BufWriter::new(io::stdout().lock());
     for (code, name, stat, directory) in &rows {
+        let name = shorten_path(name, name_width);
         let conflicted = code.contains('U') || matches!(code.as_str(), "AA" | "DD");
         for (column, letter) in code.chars().enumerate() {
             let color = &status_colors[if conflicted {
@@ -192,22 +211,31 @@ pub fn run() -> io::Result<()> {
             }
         } else {
             let total = stat.added + stat.deleted;
-            let width = if max_lines > 50 {
-                (total * 50).div_ceil(max_lines)
+            let width = if max_lines > graph_width {
+                (total * graph_width).div_ceil(max_lines)
             } else {
                 total
             };
-            let (plus, minus) = if stat.added == 0 {
+            let (plus, minus) = if width == 0 {
+                (0, 0)
+            } else if stat.added == 0 {
                 (0, width)
             } else if stat.deleted == 0 {
                 (width, 0)
             } else {
-                let width = width.max(2);
-                let plus = (stat.added * width / total).clamp(1, width - 1);
-                (plus, width - plus)
+                let width = width.max(2).min(graph_width);
+                if width == 1 {
+                    (
+                        usize::from(stat.added >= stat.deleted),
+                        usize::from(stat.added < stat.deleted),
+                    )
+                } else {
+                    let plus = (stat.added * width / total).clamp(1, width - 1);
+                    (plus, width - plus)
+                }
             };
             write!(out, "{total:>count_width$}")?;
-            if total > 0 {
+            if plus + minus > 0 {
                 write!(out, " ")?;
                 if plus > 0 {
                     write!(out, "{green}{}{reset}", "+".repeat(plus))?;
@@ -238,6 +266,49 @@ pub fn run() -> io::Result<()> {
         }
     )?;
     out.flush()
+}
+
+fn output_width() -> usize {
+    if let Some(columns) = std::env::var("COLUMNS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|&columns| columns > 0)
+    {
+        return columns;
+    }
+    #[cfg(unix)]
+    if io::stdout().is_terminal() {
+        use std::os::fd::AsFd;
+        // Query stdout's terminal, even when stdin is redirected. stty keeps
+        // terminal-size detection portable across Unix without Rust dependencies.
+        if let Ok(fd) = io::stdout().as_fd().try_clone_to_owned()
+            && let Ok(output) = Command::new("stty")
+                .arg("size")
+                .stdin(Stdio::from(fd))
+                .stderr(Stdio::null())
+                .output()
+            && output.status.success()
+            && let Some(columns) = String::from_utf8_lossy(&output.stdout)
+                .split_whitespace()
+                .nth(1)
+                .and_then(|value| value.parse::<usize>().ok())
+                .filter(|&columns| columns > 0)
+        {
+            return columns;
+        }
+    }
+    80
+}
+
+fn shorten_path(name: &str, width: usize) -> String {
+    // display_path escapes all non-ASCII bytes, so bytes equal terminal cells.
+    if name.len() <= width {
+        return name.to_owned();
+    }
+    let suffix = &name[name.len() - width.saturating_sub(3)..];
+    // Prefer a complete trailing path component, as Git's diffstat does.
+    let suffix = suffix.find('/').map_or(suffix, |slash| &suffix[slash..]);
+    format!("...{suffix}")
 }
 
 fn git_color(root: &Path, key: &str, default: &str) -> io::Result<String> {
