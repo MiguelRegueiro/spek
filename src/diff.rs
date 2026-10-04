@@ -11,12 +11,8 @@ struct Stat {
 }
 
 pub fn run() -> io::Result<()> {
-    let mut root = capture(git(Path::new(".")).args(["rev-parse", "--show-toplevel"]))?;
-    // Strip only Git's terminator, not newlines belonging to the directory name.
-    if root.last() == Some(&b'\n') {
-        root.pop();
-    }
-    let root = PathBuf::from(os_string(root)?);
+    let root = repository_root()?;
+    let excluded = crate::exclusions::paths(&root)?;
     let status = capture(git(&root).args([
         "status",
         "--porcelain=v1",
@@ -59,7 +55,15 @@ pub fn run() -> io::Result<()> {
         } else {
             None
         };
+        if excluded.iter().any(|excluded| {
+            excluded.as_slice() == path || old.is_some_and(|old| excluded.as_slice() == old)
+        }) {
+            continue;
+        }
         changes.push((code, path, old));
+    }
+    if changes.is_empty() {
+        return Ok(());
     }
     let mut rows = Vec::new();
     for &(code, path, old) in &changes {
@@ -266,6 +270,15 @@ pub fn run() -> io::Result<()> {
         }
     )?;
     out.flush()
+}
+
+pub fn repository_root() -> io::Result<PathBuf> {
+    let mut root = capture(git(Path::new(".")).args(["rev-parse", "--show-toplevel"]))?;
+    // Strip only Git's terminator, not newlines belonging to the directory name.
+    if root.last() == Some(&b'\n') {
+        root.pop();
+    }
+    Ok(PathBuf::from(os_string(root)?))
 }
 
 fn output_width() -> usize {

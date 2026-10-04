@@ -25,6 +25,7 @@ impl Repo {
         let mut command = Command::new(program);
         command
             .current_dir(&self.0)
+            .env("XDG_STATE_HOME", self.0.with_extension("state"))
             .env("GIT_CONFIG_NOSYSTEM", "1")
             .env("GIT_CONFIG_GLOBAL", "/dev/null")
             .env("GIT_AUTHOR_NAME", "Spek Test")
@@ -64,6 +65,7 @@ impl Repo {
 impl Drop for Repo {
     fn drop(&mut self) {
         fs::remove_dir_all(&self.0).unwrap();
+        let _ = fs::remove_dir_all(self.0.with_extension("state"));
     }
 }
 

@@ -102,6 +102,50 @@ fn combines_changes_without_touching_the_repository() {
 }
 
 #[test]
+fn excludes_paths_in_user_state_without_touching_the_repository() {
+    let repo = Repo::new();
+    repo.write("keep", "one\n");
+    repo.write("hide", "one\ntwo\n");
+    let before = snapshot(&repo.0);
+
+    let excluded = repo.spek(&["exclude", "hide"]);
+    assert_eq!(excluded.stdout, b"Excluded 1 path.\n");
+    assert_eq!(snapshot(&repo.0), before);
+    assert_eq!(
+        String::from_utf8(repo.spek(&[]).stdout).unwrap(),
+        "?? keep | 1 +\n 1 file changed, 1 insertion, 0 deletions\n"
+    );
+    assert_eq!(repo.spek(&["exclude", "--list"]).stdout, b"hide\n");
+
+    let state = fs::read_to_string(
+        repo.0
+            .with_extension("state")
+            .join("spek/exclusions-v1.json"),
+    )
+    .unwrap();
+    assert!(state.contains("\"version\": 1"), "{state}");
+    assert!(state.contains("\"root\":"), "{state}");
+    assert!(state.contains("\"hide\""), "{state}");
+
+    assert_eq!(
+        repo.spek(&["include", "all"]).stdout,
+        b"Included all paths.\n"
+    );
+    assert!(
+        !repo
+            .0
+            .with_extension("state")
+            .join("spek/exclusions-v1.json")
+            .exists()
+    );
+    assert_eq!(
+        String::from_utf8(repo.spek(&[]).stdout).unwrap(),
+        "?? hide | 2 ++\n?? keep | 1 +\n 2 files changed, 3 insertions, 0 deletions\n"
+    );
+    assert_eq!(snapshot(&repo.0), before);
+}
+
+#[test]
 fn works_before_first_commit_and_with_empty_files() {
     let repo = Repo::new();
     assert!(repo.spek(&[]).stdout.is_empty());
@@ -210,7 +254,16 @@ fn help_and_version_work_outside_a_repository() {
     let help = repo.spek(&["--help"]).stdout;
     assert_eq!(help, repo.spek(&["-h"]).stdout);
     let help = String::from_utf8(help).unwrap();
-    for expected in ["Usage: spek", "diff", "log", "-h, --help", "-V, --version"] {
+    for expected in [
+        "Usage: spek",
+        "diff",
+        "log",
+        "exclude <path>",
+        "include all",
+        "user-local state",
+        "-h, --help",
+        "-V, --version",
+    ] {
         assert!(help.contains(expected), "{help}");
     }
     for flag in ["--version", "-V"] {
