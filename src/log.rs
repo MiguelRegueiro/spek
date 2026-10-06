@@ -26,7 +26,7 @@ pub fn run() -> io::Result<()> {
         "--no-use-mailmap",
         "--decorate=full",
         "--encoding=none",
-        "--date=format:%b %d, %Y|%H:%M",
+        "--date=format:%b %d, %Y|%H:%M:%S",
         "--format=%h%x00%s%x00%an%x00%ae%x00%ad%x00%D",
         revision,
         "--",

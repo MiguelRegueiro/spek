@@ -45,7 +45,7 @@ fn renders_exact_author_dates_subjects_and_decorations_without_changes() {
     let before = snapshot(&repo.0);
     let text = String::from_utf8(repo.spek(&["log"]).stdout).unwrap();
     let expected = format!(
-        "spek — 2 commits\n\nSep 16, 2026\n • feat: support tabs | and separators · intact  {}\n   19:41 · Example User <Original.Author@example.com> · HEAD -> main, tag: v0.1, origin/main\n\nSep 15, 2026\n • fix: preserve PR number (#291)  {}\n   22:34 · Example User <Original.Author@example.com>\n",
+        "spek — 2 commits\n\nSep 16, 2026\n • feat: support tabs | and separators · intact  {}\n   19:41:00 · Example User <Original.Author@example.com> · HEAD -> main, tag: v0.1, origin/main\n\nSep 15, 2026\n • fix: preserve PR number (#291)  {}\n   22:34:00 · Example User <Original.Author@example.com>\n",
         second.trim(),
         first.trim(),
     );
@@ -122,10 +122,16 @@ fn log_colors_respect_git_configuration_and_plain_pipes() {
     repo.git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
     let plain = repo.spek(&["log"]).stdout;
     assert!(!plain.contains(&0x1b));
+    let date = String::from_utf8(plain.clone())
+        .unwrap()
+        .lines()
+        .nth(2)
+        .unwrap()
+        .to_owned();
     repo.git(&["config", "color.ui", "always"]);
     let colored = String::from_utf8(repo.spek(&["log"]).stdout).unwrap();
     assert!(colored.contains("\x1b[36m•\x1b[m"));
-    assert!(colored.contains("\x1b[33mSep "));
+    assert!(colored.contains(&format!("\x1b[33m{date}")));
     assert!(!colored.contains("\x1b[2m"));
     assert!(colored.contains("\x1b[36m"));
     assert!(!colored.contains("\x1b[1m"));
@@ -210,8 +216,8 @@ fn groups_consecutive_calendar_dates_and_highlights_only_pr_numbers() {
     assert_eq!(plain.matches("Sep 6, 2026").count(), 1);
     assert_eq!(plain.matches("Sep 7, 2026").count(), 1);
     assert_eq!(plain.matches("Sep 6, 2025").count(), 1);
-    assert!(plain.contains("   22:34 · Example User <Original.Author@example.com>"));
-    assert!(plain.contains("   20:57 · Example User <Original.Author@example.com>"));
+    assert!(plain.contains("   22:34:00 · Example User <Original.Author@example.com>"));
+    assert!(plain.contains("   20:57:00 · Example User <Original.Author@example.com>"));
     assert!(!plain.contains("\n\n\n"));
     repo.git(&["config", "color.ui", "always"]);
     let colored = String::from_utf8(repo.spek(&["log"]).stdout).unwrap();
