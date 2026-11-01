@@ -2,9 +2,23 @@
 
 A small, read-only Rust CLI for compact Git status, diff statistics, and commit history. Requires `git` on `PATH`; no Rust dependencies.
 
+## Cargo
+
+Install from crates.io:
+
+```sh
+cargo install spek
+```
+
+To install the version in a local checkout while developing:
+
 ```sh
 cargo install --path .
+```
 
+## Usage
+
+```sh
 spek
 spek log
 spek exclude draft.md notes.md
