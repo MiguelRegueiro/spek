@@ -10,10 +10,10 @@ Install from crates.io:
 cargo install spek
 ```
 
-To install the version in a local checkout while developing:
+Install the latest version from `main`:
 
 ```sh
-cargo install --path .
+cargo install --git https://github.com/MiguelRegueiro/spek
 ```
 
 ## Usage
