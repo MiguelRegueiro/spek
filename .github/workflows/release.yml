@@ -95,6 +95,14 @@ jobs:
             echo "version=${version}"
           } >> "${GITHUB_OUTPUT}"
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.98.1
+
+      - name: Run release gate
+        run: |
+          cargo test --locked
+          cargo package --locked
+
       - name: Extract release notes
         env:
           VERSION: ${{ steps.release.outputs.version }}
@@ -119,14 +127,6 @@ jobs:
           name: release-notes
           path: RELEASE_NOTES.md
           if-no-files-found: error
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.98.1
-
-      - name: Run release gate
-        run: |
-          cargo test --locked
-          cargo package --locked
 
   build-linux:
     name: Build Linux release asset
