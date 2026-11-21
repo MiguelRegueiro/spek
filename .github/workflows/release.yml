@@ -96,7 +96,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.98.1
+        uses: dtolnay/rust-toolchain@1.98.0
 
       - name: Run release gate
         run: |
@@ -141,7 +141,7 @@ jobs:
           ref: ${{ needs.validate.outputs.commit }}
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.98.1
+        uses: dtolnay/rust-toolchain@1.98.0
 
       - name: Build release binary
         run: cargo build --locked --release
@@ -226,7 +226,7 @@ jobs:
           ref: ${{ needs.validate.outputs.commit }}
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.98.1
+        uses: dtolnay/rust-toolchain@1.98.0
 
       - name: Check whether version exists on crates.io
         id: crates

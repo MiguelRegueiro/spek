@@ -6,6 +6,10 @@
 
 - `spek log` now shows commit descriptions, wrapping long lines with consistent indentation.
 
+### Fixed
+
+- Allow installation with Rust 1.98.0 by lowering the declared minimum and testing releases with that version.
+
 ## [1.0.0] - 2026-11-01
 
 ### Added
