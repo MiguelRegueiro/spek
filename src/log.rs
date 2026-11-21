@@ -27,20 +27,20 @@ pub fn run() -> io::Result<()> {
         "--decorate=full",
         "--encoding=none",
         "--date=format:%b %d, %Y|%H:%M:%S",
-        "--format=%h%x00%s%x00%an%x00%ae%x00%ad%x00%D",
+        "--format=%h%x00%s%x00%an%x00%ae%x00%ad%x00%D%x00%b",
         revision,
         "--",
     ]))?;
-    // Six NUL-terminated fields per commit, including an empty decoration field.
+    // Seven NUL-terminated fields per commit, including empty decorations or body.
     // Lowercase %an/%ae and --encoding=none preserve the stored author identity.
     let data = history
         .strip_suffix(&[0])
         .ok_or_else(|| io::Error::other("invalid Git log output"))?;
     let fields: Vec<_> = data.split(|&b| b == 0).collect();
-    if fields.len() % 6 != 0 {
+    if fields.len() % 7 != 0 {
         return Err(io::Error::other("invalid Git log record"));
     }
-    let count = fields.len() / 6;
+    let count = fields.len() / 7;
     let interactive = io::stdout().is_terminal();
     let terminal = if interactive { "true" } else { "false" };
     let color =
@@ -59,8 +59,9 @@ pub fn run() -> io::Result<()> {
         if count == 1 { "commit" } else { "commits" }
     )?;
     let mut previous_date = String::new();
-    for commit in fields.chunks_exact(6) {
-        let [hash, subject, author, email, date, refs] = commit else {
+    let body_width = crate::diff::output_width().saturating_sub(3).max(1);
+    for commit in fields.chunks_exact(7) {
+        let [hash, subject, author, email, date, refs, body] = commit else {
             unreachable!()
         };
         let (date, time) = std::str::from_utf8(date)
@@ -88,8 +89,41 @@ pub fn run() -> io::Result<()> {
             write_decorations(&mut out, refs, color)?;
         }
         writeln!(out, "{reset}")?;
+        write_body(&mut out, body, body_width)?;
     }
     display(&out, interactive)
+}
+
+fn write_body(out: &mut impl Write, body: &[u8], width: usize) -> io::Result<()> {
+    let mut body = body;
+    while let Some(stripped) = body.strip_suffix(b"\n") {
+        body = stripped;
+    }
+    if body.is_empty() {
+        return Ok(());
+    }
+    writeln!(out)?;
+    for line in body.split(|&byte| byte == b'\n') {
+        if line.is_empty() {
+            writeln!(out)?;
+            continue;
+        }
+        let mut remaining = line;
+        while !remaining.is_empty() {
+            let end = match std::str::from_utf8(remaining) {
+                Ok(text) => text
+                    .char_indices()
+                    .nth(width)
+                    .map_or(remaining.len(), |(index, _)| index),
+                Err(_) => remaining.len().min(width),
+            };
+            out.write_all(b"   ")?;
+            out.write_all(&remaining[..end])?;
+            writeln!(out)?;
+            remaining = &remaining[end..];
+        }
+    }
+    Ok(())
 }
 
 fn write_subject(

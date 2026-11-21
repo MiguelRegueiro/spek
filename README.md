@@ -29,7 +29,7 @@ spek include all
 
 `spek` and `spek diff` show repository-wide changes, even when run from a subdirectory. They never modify the index, working tree, Git configuration, or ignore files. Clean repositories produce no output.
 
-`spek log` shows the history reachable from `HEAD`, including merges, with dates, authors, refs, and Git's configured pager.
+`spek log` shows the history reachable from `HEAD`, including merges, with commit descriptions, dates, authors, refs, and Git's configured pager.
 
 ## Exclusions
 

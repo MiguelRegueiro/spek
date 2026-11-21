@@ -84,6 +84,53 @@ fn handles_empty_repositories_and_errors() {
 }
 
 #[test]
+fn shows_multiline_commit_description() {
+    let repo = Repo::new();
+    repo.git(&["commit", "--allow-empty", "-qm", "Earlier commit"]);
+    repo.git(&[
+        "commit",
+        "--allow-empty",
+        "-qm",
+        "Explain the change",
+        "-m",
+        "First paragraph.\nSecond line.\n\nFinal paragraph.",
+    ]);
+    let text = String::from_utf8(repo.spek(&["log"]).stdout).unwrap();
+    assert!(text.starts_with("spek — 2 commits\n"), "{text:?}");
+    assert!(text.contains(" • Explain the change  "));
+    assert!(text.contains(" • Earlier commit  "));
+    assert!(
+        text.contains("\n\n   First paragraph.\n   Second line.\n\n   Final paragraph.\n"),
+        "{text:?}"
+    );
+}
+
+#[test]
+fn wraps_description_continuations_with_the_same_indent() {
+    let repo = Repo::new();
+    repo.git(&[
+        "commit",
+        "--allow-empty",
+        "-qm",
+        "A subject",
+        "-m",
+        "abcdefghijklmnopqrstuvwx\ncafé after",
+    ]);
+    let output = repo
+        .command(env!("CARGO_BIN_EXE_spek"))
+        .arg("log")
+        .env("COLUMNS", "12")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        text.contains("\n\n   abcdefghi\n   jklmnopqr\n   stuvwx\n   café afte\n   r\n"),
+        "{text:?}"
+    );
+}
+
+#[test]
 fn counts_reachable_history_including_merges_and_handles_detached_head() {
     let repo = Repo::new();
     repo.git(&["symbolic-ref", "HEAD", "refs/heads/main"]);

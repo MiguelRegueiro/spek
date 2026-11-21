@@ -281,7 +281,7 @@ pub fn repository_root() -> io::Result<PathBuf> {
     Ok(PathBuf::from(os_string(root)?))
 }
 
-fn output_width() -> usize {
+pub(crate) fn output_width() -> usize {
     if let Some(columns) = std::env::var("COLUMNS")
         .ok()
         .and_then(|value| value.parse::<usize>().ok())

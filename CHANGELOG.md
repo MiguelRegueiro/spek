@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `spek log` now shows commit descriptions, wrapping long lines with consistent indentation.
+
 ## [1.0.0] - 2026-11-01
 
 ### Added
